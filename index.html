@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Merry Christmas · 圣诞音乐盒</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden;
+      background: radial-gradient(circle at 50% 35%, #16223d 0%, #080d1a 65%, #03050a 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #fff;
+    }
+    #canvas-container { position: fixed; inset: 0; z-index: 1; }
+    .header-title {
+      position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 10; text-align: center; pointer-events: none; width: 90%;
+    }
+    .header-title h1 {
+      font-size: clamp(1.5rem, 4.5vw, 2.5rem); font-weight: 700; letter-spacing: 3px;
+      background: linear-gradient(90deg, #ffe29f, #ffa99f, #ffd700, #fff3b0);
+      background-size: 200% auto; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      animation: shine 4s linear infinite;
+    }
+    .header-title p { margin-top: 6px; font-size: 0.85rem; color: rgba(255, 255, 255, 0.75); letter-spacing: 1px; }
+    @keyframes shine { to { background-position: 200% center; } }
+    .top-controls { position: fixed; top: 18px; right: 18px; z-index: 20; display: flex; gap: 10px; }
+    .icon-btn {
+      background: rgba(20, 28, 48, 0.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 215, 0, 0.4); color: #ffe89e; padding: 9px 14px; border-radius: 999px;
+      font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+    .icon-btn.playing { border-color: #ffd700; box-shadow: 0 0 18px rgba(255, 215, 0, 0.45); }
+    .music-bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 13px; }
+    .music-bars span { width: 2.5px; height: 5px; background: #ffd700; border-radius: 2px; }
+    .playing .music-bars span:nth-child(1) { animation: bar 0.7s ease-in-out infinite alternate; }
+    .playing .music-bars span:nth-child(2) { animation: bar 0.5s ease-in-out infinite alternate 0.2s; }
+    .playing .music-bars span:nth-child(3) { animation: bar 0.8s ease-in-out infinite alternate 0.35s; }
+    @keyframes bar { 0% { height: 3px; } 100% { height: 13px; } }
+    .panel {
+      position: fixed; top: 66px; right: 18px; z-index: 20; width: 250px;
+      background: rgba(16, 23, 42, 0.86); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 16px; padding: 16px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55); display: none;
+    }
+    .panel.open { display: block; }
+    .panel-group { margin-bottom: 14px; }
+    .panel-group:last-child { margin-bottom: 0; }
+    .panel-label { font-size: 0.8rem; color: rgba(255, 255, 255, 0.78); margin-bottom: 8px; display: flex; justify-content: space-between; }
+    .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .theme-btn {
+      padding: 7px 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.06); color: #fff; font-size: 0.8rem; cursor: pointer;
+    }
+    .theme-btn.active { border-color: #ffd700; background: rgba(255, 215, 0, 0.22); color: #ffe89e; }
+    input[type="range"] { width: 100%; accent-color: #ffd700; }
+    .music-toast {
+      position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); z-index: 20;
+      background: rgba(20, 28, 48, 0.82); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 215, 0, 0.42); padding: 10px 18px; border-radius: 999px;
+      font-size: 0.85rem; color: #ffe89e; cursor: pointer; white-space: nowrap; transition: opacity 0.4s;
+    }
+    .music-toast.hidden { opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="canvas-container"></div>
+  <div class="header-title">
+    <h1>MERRY CHRISTMAS</h1>
+    <p>轻触屏幕放烟花 · 拖拽旋转视角</p>
+  </div>
+  <div class="top-controls">
+    <button class="icon-btn" id="musicBtn"><span class="music-bars"><span></span><span></span><span></span></span><span id="musicText">播放音乐</span></button>
+    <button class="icon-btn" id="panelBtn">✨ 魔法设置</button>
+  </div>
+  <div class="panel" id="controlPanel">
+    <div class="panel-group">
+      <div class="panel-label"><span>灯光配色</span></div>
+      <div class="theme-grid">
+        <button class="theme-btn active" data-theme="classic">🎄 经典暖彩</button>
+        <button class="theme-btn" data-theme="frozen">❄️ 冰雪奇缘</button>
+        <button class="theme-btn" data-theme="gold">✨ 流金岁月</button>
+        <button class="theme-btn" data-theme="galaxy">🌌 幻彩星河</button>
+      </div>
+    </div>
+    <div class="panel-group">
+      <div class="panel-label"><span>音乐曲目</span></div>
+      <div class="theme-grid">
+        <button class="theme-btn active" data-song="0">🎶 祝你圣诞快乐</button>
+        <button class="theme-btn" data-song="1">🔔 铃儿响叮当</button>
+      </div>
+    </div>
+    <div class="panel-group">
+      <div class="panel-label"><span>旋转速度</span><span id="speedVal">1.0x</span></div>
+      <input type="range" id="speedRange" min="0" max="3" step="0.1" value="1" />
+    </div>
+    <div class="panel-group">
+      <div class="panel-label"><span>飞雪密度</span><span id="snowVal">中</span></div>
+      <input type="range" id="snowRange" min="200" max="2000" step="100" value="1000" />
+    </div>
+  </div>
+  <div class="music-toast" id="musicToast">🎵 点击屏幕任意位置开启圣诞八音盒音乐</div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    class ChristmasMusicBox {
+      constructor() {
+        this.ctx = null; this.isPlaying = false; this.timer = null; this.noteIndex = 0; this.songIndex = 0;
+        this.freqs = {
+          C4:261.63, D4:293.66, E4:329.63, F4:349.23, G4:392.00, A4:440.00, B4:493.88,
+          C5:523.25, D5:587.33, E5:659.25, F5:698.46, G5:783.99, A5:880.00, B5:987.77,
+          C3:130.81, F3:174.61, G3:196.00, A3:220.00, E3:164.81, D3:146.83
+        };
+        this.songs = [
+          [['D4',1,'G3'],['G4',1,'G3'],['G4',0.5,null],['A4',0.5,null],['G4',0.5,null],['F4',0.5,null],
+           ['E4',1,'C3'],['E4',1,'E3'],['E4',1,'C3'],['A4',1,'A3'],['A4',0.5,null],['B4',0.5,null],['A4',0.5,null],['G4',0.5,null],
+           ['F4',1,'D3'],['D4',1,'F3'],['D4',1,'D3'],['B4',1,'G3'],['B4',0.5,null],['C5',0.5,null],['B4',0.5,null],['A4',0.5,null],
+           ['G4',1,'E3'],['E4',1,'G3'],['D4',0.5,null],['D4',0.5,null],['E4',1,'C3'],['A4',1,'D3'],['F4',1,'D3'],['G4',2,'G3'],[null,1,null]],
+          [['E4',1,'C3'],['E4',1,'G3'],['E4',2,'C3'],['E4',1,'C3'],['E4',1,'G3'],['E4',2,'C3'],
+           ['E4',1,'C3'],['G4',1,'E3'],['C4',1.5,'G3'],['D4',0.5,null],['E4',4,'C3'],
+           ['F4',1,'F3'],['F4',1,'A3'],['F4',1.5,'F3'],['F4',0.5,null],['F4',1,'C3'],['E4',1,'G3'],['E4',1,'C3'],['E4',0.5,null],['E4',0.5,null],
+           ['E4',1,'G3'],['D4',1,'D3'],['D4',1,'G3'],['E4',1,'D3'],['D4',2,'G3'],['G4',2,'G3'],
+           ['E4',1,'C3'],['E4',1,'G3'],['E4',2,'C3'],['E4',1,'C3'],['E4',1,'G3'],['E4',2,'C3'],
+           ['E4',1,'C3'],['G4',1,'E3'],['C4',1.5,'G3'],['D4',0.5,null],['E4',4,'C3'],
+           ['F4',1,'F3'],['F4',1,'A3'],['F4',1.5,'F3'],['F4',0.5,null],['F4',1,'C3'],['E4',1,'G3'],['E4',1,'C3'],['E4',0.5,null],['E4',0.5,null],
+           ['G4',1,'G3'],['G4',1,'D3'],['F4',1,'G3'],['D4',1,'F3'],['C4',3,'C3'],[null,1,null]]
+        ];
+      }
+      initContext() {
+        if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+      }
+      playTone(freq, dur, vol = 0.16, type = 'sine') {
+        if (!this.ctx || !freq) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator(), over = this.ctx.createOscillator(), gain = this.ctx.createGain(), overGain = this.ctx.createGain();
+        osc.type = type; osc.frequency.setValueAtTime(freq, now);
+        over.type = 'triangle'; over.frequency.setValueAtTime(freq * 2, now);
+        overGain.gain.setValueAtTime(vol * 0.25, now); overGain.gain.exponentialRampToValueAtTime(0.0001, now + dur * 0.9);
+        gain.gain.setValueAtTime(0.001, now); gain.gain.linearRampToValueAtTime(vol, now + 0.015); gain.gain.exponentialRampToValueAtTime(0.0001, now + dur * 1.35);
+        osc.connect(gain); over.connect(overGain); overGain.connect(gain); gain.connect(this.ctx.destination);
+        osc.start(now); over.start(now); osc.stop(now + dur * 1.4); over.stop(now + dur * 1.4);
+      }
+      playSparkle() {
+        if (!this.isPlaying) return;
+        this.initContext();
+        const f = [1046.5, 1318.5, 1567.98, 2093.0][Math.floor(Math.random() * 4)];
+        this.playTone(f, 0.35, 0.06, 'sine');
+      }
+      scheduleNext() {
+        if (!this.isPlaying) return;
+        const song = this.songs[this.songIndex], [note, beats, bass] = song[this.noteIndex], beatMs = 420, dur = (beats * beatMs) / 1000;
+        if (note && this.freqs[note]) this.playTone(this.freqs[note], dur, 0.17, 'sine');
+        if (bass && this.freqs[bass]) this.playTone(this.freqs[bass], dur * 1.5, 0.08, 'triangle');
+        this.noteIndex = (this.noteIndex + 1) % song.length;
+        this.timer = setTimeout(() => this.scheduleNext(), beats * beatMs);
+      }
+      start() { this.initContext(); if (this.isPlaying) return; this.isPlaying = true; this.scheduleNext(); updateMusicUI(true); }
+      stop() { this.isPlaying = false; clearTimeout(this.timer); updateMusicUI(false); }
+      toggle() { this.isPlaying ? this.stop() : this.start(); }
+      switchSong(idx) { this.songIndex = idx; this.noteIndex = 0; clearTimeout(this.timer); if (this.isPlaying) this.scheduleNext(); else this.start(); }
+    }
+    const musicBox = new ChristmasMusicBox();
+    const musicBtn = document.getElementById('musicBtn'), musicText = document.getElementById('musicText'), musicToast = document.getElementById('musicToast');
+    function updateMusicUI(p) {
+      musicBtn.classList.toggle('playing', p);
+      musicText.textContent = p ? '音乐播放中' : '已静音';
+      if (p) musicToast.classList.add('hidden');
+    }
+    musicBtn.addEventListener('click', (e) => { e.stopPropagation(); musicBox.toggle(); });
+    window.addEventListener('pointerdown', () => musicBox.start(), { once: true });
+
+    const scene = new THREE.Scene(); scene.fog = new THREE.FogExp2(0x060a14, 0.018);
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    function createGlowTex() {
+      const c = document.createElement('canvas'); c.width = 64; c.height = 64; const ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+      g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.25, 'rgba(255,245,210,0.85)');
+      g.addColorStop(0.6, 'rgba(255,210,120,0.25)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c);
+    }
+    const glowTex = createGlowTex();
+    const themes = {
+      classic: { tree: [0x1b7a3d, 0x28a745, 0xff3b3b, 0xffd700, 0xffffff], ribbon: [0xffd700, 0xff4d4d], star: 0xffd700 },
+      frozen:  { tree: [0x38bdf8, 0x7dd3fc, 0xe0f2fe, 0xffffff, 0x818cf8], ribbon: [0xbae6fd, 0xffffff], star: 0xe0f2fe },
+      gold:    { tree: [0xfbbf24, 0xf59e0b, 0xfef08a, 0xffffff, 0xd97706], ribbon: [0xffffff, 0xfde047], star: 0xfffbeb },
+      galaxy:  { tree: [0xc084fc, 0xf472b6, 0x60a5fa, 0xfacc15, 0x34d399], ribbon: [0xf472b6, 0x38bdf8], star: 0xfef08a }
+    };
+    const treeGroup = new THREE.Group(); scene.add(treeGroup);
+    const TREE_COUNT = 4200, treeGeo = new THREE.BufferGeometry(), treePos = new Float32Array(TREE_COUNT * 3), treeCol = new Float32Array(TREE_COUNT * 3), treeBase = [];
+    for (let i = 0; i < TREE_COUNT; i++) {
+      const h = Math.random() * 14, p = h / 14, wave = 1 + 0.18 * Math.sin(p * Math.PI * 10);
+      const r = Math.pow(Math.random(), 0.55) * (1 - p) * 5.6 * wave, a = Math.random() * Math.PI * 2;
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      treePos[i*3] = x; treePos[i*3+1] = h; treePos[i*3+2] = z; treeBase.push({ y: h, phase: Math.random() * 6.28 });
+    }
+    treeGeo.setAttribute('position', new THREE.BufferAttribute(treePos, 3)); treeGeo.setAttribute('color', new THREE.BufferAttribute(treeCol, 3));
+    treeGroup.add(new THREE.Points(treeGeo, new THREE.PointsMaterial({ size: 0.26, map: glowTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
+
+    const RIBBON_COUNT = 900, ribbonGeo = new THREE.BufferGeometry(), ribbonPos = new Float32Array(RIBBON_COUNT * 3), ribbonCol = new Float32Array(RIBBON_COUNT * 3);
+    for (let i = 0; i < RIBBON_COUNT; i++) {
+      const strand = i % 2, t = Math.floor(i / 2) / (RIBBON_COUNT / 2), y = t * 13.8, r = (1 - t) * 5.8 + 0.25, a = t * Math.PI * 9 + strand * Math.PI;
+      ribbonPos[i*3] = Math.cos(a) * r; ribbonPos[i*3+1] = y; ribbonPos[i*3+2] = Math.sin(a) * r;
+    }
+    ribbonGeo.setAttribute('position', new THREE.BufferAttribute(ribbonPos, 3)); ribbonGeo.setAttribute('color', new THREE.BufferAttribute(ribbonCol, 3));
+    treeGroup.add(new THREE.Points(ribbonGeo, new THREE.PointsMaterial({ size: 0.34, map: glowTex, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
+
+    const starShape = new THREE.Shape();
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 === 0 ? 0.95 : 0.42, a = (i * Math.PI) / 5 - Math.PI / 2;
+      i === 0 ? starShape.moveTo(Math.cos(a)*r, -Math.sin(a)*r) : starShape.lineTo(Math.cos(a)*r, -Math.sin(a)*r);
+    }
+    starShape.closePath();
+    const starGeo = new THREE.ExtrudeGeometry(starShape, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.06, bevelSegments: 2 }); starGeo.center();
+    const topStar = new THREE.Mesh(starGeo, new THREE.MeshBasicMaterial({ color: 0xffd700 })); topStar.position.set(0, 14.55, 0); treeGroup.add(topStar);
+    const starHalo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffd700, transparent: true, blending: THREE.AdditiveBlending }));
+    starHalo.scale.set(4.2, 4.2, 1); starHalo.position.set(0, 14.55, 0); treeGroup.add(starHalo);
+    const ringGeo = new THREE.RingGeometry(0.2, 6.8, 64); ringGeo.rotateX(-Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xffd700, transparent: true, opacity: 0.14, side: THREE.DoubleSide });
+    const baseRing = new THREE.Mesh(ringGeo, ringMat); baseRing.position.y = -0.1; treeGroup.add(baseRing);
+
+    function applyTheme(name) {
+      const cfg = themes[name], tc = treeGeo.attributes.color.array, rc = ribbonGeo.attributes.color.array;
+      for (let i = 0; i < TREE_COUNT; i++) { const c = new THREE.Color(cfg.tree[Math.floor(Math.random()*cfg.tree.length)]); tc[i*3]=c.r; tc[i*3+1]=c.g; tc[i*3+2]=c.b; }
+      for (let i = 0; i < RIBBON_COUNT; i++) { const c = new THREE.Color(cfg.ribbon[i%cfg.ribbon.length]); rc[i*3]=c.r; rc[i*3+1]=c.g; rc[i*3+2]=c.b; }
+      treeGeo.attributes.color.needsUpdate = true; ribbonGeo.attributes.color.needsUpdate = true;
+      topStar.material.color.setHex(cfg.star); starHalo.material.color.setHex(cfg.star); ringMat.color.setHex(cfg.star);
+    }
+    applyTheme('classic');
+
+    const MAX_SNOW = 2000; let activeSnow = 1000;
+    const snowGeo = new THREE.BufferGeometry(), snowPos = new Float32Array(MAX_SNOW * 3), snowVel = [];
+    for (let i = 0; i < MAX_SNOW; i++) {
+      snowPos[i*3] = (Math.random()-0.5)*48; snowPos[i*3+1] = Math.random()*28-2; snowPos[i*3+2] = (Math.random()-0.5)*48;
+      snowVel.push({ y: 0.02 + Math.random()*0.04, d: Math.random()*6.28 });
+    }
+    snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3)); snowGeo.setDrawRange(0, activeSnow);
+    scene.add(new THREE.Points(snowGeo, new THREE.PointsMaterial({ size: 0.24, map: glowTex, color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending })));
+
+    const fireworks = [], raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2(), hitPlane = new THREE.Plane(new THREE.Vector3(0,0,1), 0);
+    function spawnFirework(pos) {
+      const count = 85, geo = new THREE.BufferGeometry(), positions = new Float32Array(count*3), colors = new Float32Array(count*3), vels = [];
+      const base = new THREE.Color([0xff4d6d,0xffd166,0x06d6a0,0x4cc9f0,0xc77dff,0xffffff][Math.floor(Math.random()*6)]);
+      for (let i = 0; i < count; i++) {
+        positions[i*3]=pos.x; positions[i*3+1]=pos.y; positions[i*3+2]=pos.z;
+        const th = Math.random()*6.28, ph = Math.acos(2*Math.random()-1), sp = 0.08 + Math.random()*0.15;
+        vels.push(new THREE.Vector3(Math.sin(ph)*Math.cos(th)*sp, Math.cos(ph)*sp, Math.sin(ph)*Math.sin(th)*sp));
+        const c = base.clone().offsetHSL((Math.random()-0.5)*0.12, 0, 0.1); colors[i*3]=c.r; colors[i*3+1]=c.g; colors[i*3+2]=c.b;
+      }
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3)); geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.35, map: glowTex, vertexColors: true, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending }));
+      scene.add(pts); fireworks.push({ pts, vels, life: 1 }); musicBox.playSparkle();
+    }
+
+    let dragging = false, dist = 0, px = 0, py = 0, rotSpeed = 1, camR = 26, camAng = 0, camH = 7;
+    renderer.domElement.addEventListener('pointerdown', (e) => { dragging = true; dist = 0; px = e.clientX; py = e.clientY; });
+    window.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - px, dy = e.clientY - py; dist += Math.abs(dx) + Math.abs(dy); px = e.clientX; py = e.clientY;
+      camAng -= dx * 0.008; camH = Math.max(1, Math.min(18, camH + dy * 0.04));
+    });
+    window.addEventListener('pointerup', (e) => {
+      if (dragging && dist < 8) {
+        pointer.x = (e.clientX / window.innerWidth) * 2 - 1; pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera); const target = new THREE.Vector3();
+        hitPlane.normal.copy(camera.position).normalize(); raycaster.ray.intersectPlane(hitPlane, target);
+        if (target) spawnFirework(target);
+      }
+      dragging = false;
+    });
+    window.addEventListener('wheel', (e) => { camR = Math.max(12, Math.min(42, camR + e.deltaY * 0.015)); }, { passive: true });
+
+    document.getElementById('panelBtn').addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('controlPanel').classList.toggle('open'); });
+    document.querySelectorAll('[data-theme]').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation(); document.querySelectorAll('[data-theme]').forEach(x => x.classList.remove('active')); b.classList.add('active'); applyTheme(b.dataset.theme);
+    }));
+    document.querySelectorAll('[data-song]').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation(); document.querySelectorAll('[data-song]').forEach(x => x.classList.remove('active')); b.classList.add('active'); musicBox.switchSong(Number(b.dataset.song));
+    }));
+    document.getElementById('speedRange').addEventListener('input', (e) => { rotSpeed = parseFloat(e.target.value); document.getElementById('speedVal').textContent = rotSpeed.toFixed(1) + 'x'; });
+    document.getElementById('snowRange').addEventListener('input', (e) => {
+      activeSnow = parseInt(e.target.value, 10); snowGeo.setDrawRange(0, activeSnow);
+      document.getElementById('snowVal').textContent = activeSnow < 600 ? '小' : activeSnow < 1400 ? '中' : '暴雪';
+    });
+    window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+      treeGroup.rotation.y += 0.004 * rotSpeed; topStar.rotation.y = t * 1.4;
+      const pulse = 3.8 + Math.sin(t * 3.5) * 0.7; starHalo.scale.set(pulse, pulse, 1);
+      const tArr = treeGeo.attributes.position.array;
+      for (let i = 0; i < TREE_COUNT; i += 3) tArr[i+1] = treeBase[i].y + Math.sin(t * 2 + treeBase[i].phase) * 0.04;
+      treeGeo.attributes.position.needsUpdate = true;
+
+      const sArr = snowGeo.attributes.position.array;
+      for (let i = 0; i < activeSnow; i++) {
+        sArr[i*3+1] -= snowVel[i].y; sArr[i*3] += Math.sin(t + snowVel[i].d) * 0.01;
+        if (sArr[i*3+1] < -2) sArr[i*3+1] = 24;
+      }
+      snowGeo.attributes.position.needsUpdate = true;
+
+      for (let i = fireworks.length - 1; i >= 0; i--) {
+        const fw = fireworks[i]; fw.life -= 0.018;
+        if (fw.life <= 0) { scene.remove(fw.pts); fw.pts.geometry.dispose(); fw.pts.material.dispose(); fireworks.splice(i, 1); continue; }
+        const pos = fw.pts.geometry.attributes.position.array;
+        for (let j = 0; j < fw.vels.length; j++) {
+          fw.vels[j].y -= 0.0028; fw.vels[j].multiplyScalar(0.98);
+          pos[j*3] += fw.vels[j].x; pos[j*3+1] += fw.vels[j].y; pos[j*3+2] += fw.vels[j].z;
+        }
+        fw.pts.geometry.attributes.position.needsUpdate = true; fw.pts.material.opacity = fw.life;
+      }
+      camera.position.x = Math.sin(camAng) * camR; camera.position.z = Math.cos(camAng) * camR;
+      camera.position.y += (camH - camera.position.y) * 0.08; camera.lookAt(0, 6.5, 0);
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
